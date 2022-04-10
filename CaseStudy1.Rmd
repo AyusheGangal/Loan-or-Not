@@ -1,0 +1,170 @@
+---
+title: "Stout CaseStudy1"
+author: "Ayushe Gangal"
+date: "4/8/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(readxl)
+library(ggExtra)
+library(ggplot2)
+library(knitr)
+```
+
+The dataset is loaded using the read_csv(). It is found that the dataset has 10000 rows and 55 columns, that is, 55 features. Given below is a glimpse of the dataset. The dataset has two types of values in it, namely, character type and double class. 
+
+```{r loan}
+data <- read_csv("/Users/ayushe/RStudio stuff/RData/loans_full_schema.csv")
+```
+
+The first 10 rows of the dataset are given below:
+
+```{r}
+kable(head(data, 10))
+```
+
+A more detailed description of the dataset is given below:
+```{r}
+glimpse(data)
+```
+
+
+The dataset has the following (55) columns: 
+
+```{r}
+colnames(data)
+```
+
+
+
+There are a few problems with the dataset:
+1. It has missing values, which can be counted column-wise as follows:
+
+```{r}
+sapply(data, function(x) sum(is.na(x)))
+```
+
+We find that the column emp_title has 833 missing values, emp_length has 817 missing values, debt_to_income, annual_income_joint, verification_income_joint have 24, 8505 and 8545 missing values respectively, and so on. We first drop all the rows with missing values in the emp_title.
+
+```{r}
+data <- drop_na(data, emp_title)
+sapply(data, function(x) sum(is.na(x)))
+```
+
+We also change the column name of "emp_title" as "Job" and "emp_length" as "employment_len"
+
+```{r}
+data <- data %>%
+  rename(job = emp_title) %>%
+  rename(employment_len = emp_length)
+```
+
+
+We replace the missing values in the rest of the columns with character class type as "Not Applicable" and for double class type as -1
+
+```{r}
+data <- replace_na(data, list(debt_to_income_joint = -1))
+data <- replace_na(data, list(annual_income_joint = -1))
+data <- replace_na(data, list(verification_income_joint = "Not Applicable"))
+data <- replace_na(data, list(months_since_last_delinq = -1))
+data <- replace_na(data, list(months_since_90d_late = -1))
+data <- replace_na(data, list(months_since_last_credit_inquiry = -1))
+data <- replace_na(data, list(num_accounts_120d_past_due = -1))
+```
+
+
+We now take a look at the dataset, which has zero missing values
+```{r}
+data <- drop_na(data, debt_to_income)
+sapply(data, function(x) sum(is.na(x)))
+```
+
+
+
+#1 Visualization - Interest Rate VS Grade on term of loan
+
+We find that as the value of Grade increases from A to G, the interest rate also increases linearly. Therefore, a linear relationship between the Grade and Interest Rate is seen, which is applicable for both terms of 36 months and 60 months. Which is in compliance with the fact that Higher-grade loans (i.e. A,B,C) indicate better credit and lower risk while lower grade loans (i.e. E, F, G) indicate the opposite, and thus lower interest rate for Higher-grade loans and higher interest rates for lower grade loans.
+
+```{r}
+ggplot(data, aes(x =  interest_rate, y = grade , fill = term)) + 
+        geom_boxplot() + 
+        labs(x = 'Interest Rate' , y = 'Grade') +
+  facet_wrap(~ term)
+```
+
+
+#2 Visualization - Purpose of Loan VS Loan Amount highlighting the status of Loan on term of loan
+
+We find that for term of 36 months, the highest loan amounts correspond to the purposes like Renewable Energy, Moving, Major Purchases, Debt Consolidation, Home Improvement, Car and Credit Cards, all of whose loan status is currently going on. We also found that people take higher loans for all purposes for the 60 month term, and there are less number of late loan statuses for 60 month term, which shows that there are lesser instances where people are not able to pay back their loan on time for a longer loan period. 
+
+```{r}
+ggplot(data, aes(x = loan_amount , y = loan_purpose , fill = loan_status)) + 
+        geom_boxplot() + 
+        labs(y = ' Purpose of Loan' , x = 'Loan_amount') +
+        facet_wrap(~ term)
+```
+
+
+#3 Visualization - Loan Amount VS Grade highlighting Sub Grade on term of loan
+
+Here we do not observe a linear relationship between Grade and Loan Amount, rather higher loan amounts are observed for 60 month term than the 30 month term for all the Grades (A-G). We also observe that Grade A in the 60 month term has the highest Loan Amount, and that Grade G does not have a significant Loan Amount for 36 month term.
+
+```{r}
+ggplot(data, aes(x = grade , y = loan_amount , fill = sub_grade)) + 
+        geom_boxplot() + 
+        labs(y = 'Loan Amount' , x = 'Grade') +
+  facet_wrap(~ term)
+```
+
+
+#4 Visualization - State VS Percentage of Loans 
+
+Here we observe (in decreasing order) the state-wise trends in the form of loan percentage for loan percentage greated than 1%. We find that people in California takes the majority of loans with 13.39%.
+
+```{r}
+data %>%
+  group_by(state) %>%
+  summarise(CountLoanPurpose = n() ) %>%
+  mutate(percentage = (CountLoanPurpose/sum(CountLoanPurpose) ) *100 ) %>%
+  mutate(state = reorder(state, percentage)) %>%
+  arrange(desc(percentage)) %>%
+  filter(percentage > 1) %>%
+  
+  ggplot(aes(x = state, y = percentage, fill=state)) +
+  geom_bar(stat='identity', colour="white") +
+  geom_text(aes(x = state, y = 1, label = paste0(round(percentage,2),sep="")),
+            hjust=0, vjust=.5, size = 4, colour = 'black',
+            fontface = 'bold') +
+  labs(x = 'State Name', y = 'Percentage of Loans', title = 'States and Loans') +
+  coord_flip()
+```
+
+
+#5 Visualization - Purpose VS Loan Amount on Type of Application 
+
+The relationship between the purpose and loan amount is observed here, and we can also see the type of application for the loan here. It is seen that a joint application type corresponds to higher loan amount, and this relationship is extremely visible for purposes like Small Businesses and House.
+
+```{r}
+ggplot(data, aes(y =  loan_purpose, x = loan_amount, fill = application_type)) + 
+        geom_boxplot() + 
+        labs(x = 'Loan Amount' , y = 'Purpose')
+```
+
+
+#6 Visualization - Loan Amount VS Annual Income highlighting Rate of Interest on Term of Loan
+
+Here we observe the trends between Loan Amount, Annual Income and Rate of Interest over 36 month and 60 month terms. It can be clearly seen that people prefer to take loans of higher amounts for a 60 term period for lesser Rate of Interests.
+
+```{r}
+ggplot(data, aes(x = annual_income , y = loan_amount , color = interest_rate)) +
+        geom_point(alpha = 0.5 , size = 1.5) + 
+        geom_smooth(se = F , color = 'darkred' , method = 'loess') +
+        xlim(c(0 , 300000)) + 
+        labs(x = 'Annual Income' , y = 'Loan Ammount' , color = 'Interest Rate') +
+        facet_wrap(~ term)
+```
+
+
