@@ -1,0 +1,489 @@
+---
+title: "Loan or Not?: EDA & Data Visualization"
+description: "Exploratory Data Analysis and Visualization of the Lending Club Dataset"
+author: "Ayushe Gangal"
+date: "`r Sys.Date()`"
+output: distill::distill_article
+---
+
+<style>
+body {
+text-align: justify
+}
+</style>
+
+## Introduction  
+Loan defaulter prediction is extremely important and is widely used by banks and private loan providers all around the world to determine if a person would be able to repay the dept or not, and is used to determine if they should be given a loan or not. Machine Learning algorithms are being utilized for this task as they provide a near perfect estimate and are able to identify the important factors which contribute in making the estimate near perfect. In this project, I aim to study, analyze and visualize various factors and relationships between those factors which contribute in determining the rate of interest of the loan amount and also if a person is a potential loan defaulter.   
+
+**The major questions I'm trying to answer with this project are:**   
+
+* Does the amount of loan vary with the purpose which the loan has been taken, for two different loan terms?
+- Is there a geographical connection between the loan amount for United States or not, if yes, which state has the highest number of loan defaulters?
+- How does the amount of loan vary with the annual income of the borrower?
+- and lastly, Is there a relationship between the amount of loan, purpose of loan and the type of application for the loan?  
+- How the grade of the loan influences the rate of interest of the loan?   
+
+**Installing essential packages**  
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+library(ggExtra)
+library(ggplot2)
+library(knitr)
+library(sqldf)
+```  
+
+# Data  
+**Brief Description of the Data Set**  
+
+For this project, I'm using the Loan data set by the Lending Club. The Lending Club is a peer to peer lending site where a single person can apply for a personal loan that might be selected to be funded by a single person or group of people. Lending Club requires relevant financial data from the individual requesting the loan. Information such as loan amount, income, employment status, etc. Lending Club then grades the loan request and provides the amount of interest that will be charged by assessing risk from the provided information. Lending Club then puts the loan “up for auction” to see if any funders would like to fulfill the loan at the specified amount and percentage rate.  
+
+**Loading the Data set**  
+
+The data set is loaded using the `read_csv(.)` function.  
+
+```{r loan}
+data <- read_csv("/Users/ayushe/RStudio stuff/RData/loans_full_schema.csv")
+```  
+
+We now find the dimensions of this data set (which we have imported as a data frame) by using thr R function `dim(.)` and then create a table containing the count of the different data types we have in this data frame, by using the R function `sapply(.)` nested within `table(.)`.  
+
+```{r}
+dim(data)
+table(sapply(data, class))
+```  
+
+It is found that the data set has 10000 rows and 55 columns, that is, 55 features. Also, the data set contains 13 columns with categorical values and 42 columns with double type values. Given below is a glimpse of the data set. The data set has two types of values in it, namely, character type and double class.  
+
+**A more detailed description of the data set is given below:**  
+
+We can further explore the names of those columns and look at several values in them by using the R function  `glimpse(.)`. This function is like a transposed version of print: columns run down the page, and data runs across. This makes it possible to see every column in a data frame.  
+
+```{r}
+glimpse(data)
+```
+  
+The data set contains a lot of missing values, needs to be cleaned thoroughly before it can been used for carrying out analysis and visualizations.   
+
+**It is also called as Data Wrangling/ Cleaning and here involves the following steps:**   
+
+- Getting rid of missing values. It can be done by either removing the complete row of data, by filling the mode of the values or by filling the same constant value.  
+- Renaming the column so that they can be better understood by the user.  
+
+## Data Wrangling and Cleaning  
+
+**Checking for Missing Values**  
+
+We check for missing values using a R function `sapply(.)`. This function is a vectorized function which belongs to the `apply(.)` function family and is capable of iterating over a list/vector/data frame without needing a loop. It applies the passed `function(.)` on the list/vector/data frame, and takes the list/vector/data frame on which the function is to be applied and the `function(.)` which is to be applied as input.  
+
+The `function(.)` we're defining here isa nested `sum(.)` function, which has `is.na(.)` inside it and it checks if value passed in it is NULL or not. The `sum(.)` function sums all the NULL values and give us a total NULL value count for each column of the data set.  
+
+```{r}
+sapply(data, function(x) sum(is.na(x)))
+```  
+
+
+**We find that the column emp_title has 833 missing values, emp_length has 817 missing values, debt_to_income, annual_income_joint, verification_income_joint have 24, 8505 and 8545 missing values respectively, and so on. We first drop all the rows with missing values in the emp_title, and check for missing values again.**  
+
+
+```{r}
+head(data, 10)
+```  
+
+```{r}
+data <- drop_na(data, emp_title)
+sapply(data, function(x) sum(is.na(x)))
+```  
+  
+  
+**We also change the column name of "emp_title" as "Job" and "emp_length" as "employment_len". This is done to enhance the readability and understanding of the naive user who is reading these column names for the first time.**  
+
+```{r}
+data <- data %>%
+  rename(job = emp_title) %>%
+  rename(employment_len = emp_length)
+```
+  
+  
+**We replace the missing values in the rest of the columns with character class type as "Not Applicable" and for double class type as -1, since the missing values are too many to be blatantly deleted as it would seriously impact the amount of data we have. We use the R function ** `replace_na(.)` **to replace these missing values with the values provided in the function as argument.** 
+
+```{r}
+data <- replace_na(data, list(debt_to_income_joint = -1))
+data <- replace_na(data, list(annual_income_joint = -1))
+data <- replace_na(data, list(verification_income_joint = "Not Applicable"))
+data <- replace_na(data, list(months_since_last_delinq = -1))
+data <- replace_na(data, list(months_since_90d_late = -1))
+data <- replace_na(data, list(months_since_last_credit_inquiry = -1))
+data <- replace_na(data, list(num_accounts_120d_past_due = -1))
+```
+  
+  
+**We now take a look at the dataset, which has zero missing values**  
+
+```{r}
+data <- drop_na(data, debt_to_income)
+sapply(data, function(x) sum(is.na(x)))
+```  
+  
+**The first 5 rows of the data set look like this**
+```{r}
+head(data, 5)
+```
+  
+**Data has been cleaned successfully and can now be used for analysis and visualization.**  
+
+## Basic Analysis before plotting   
+
+Before plotting the data and the relationships between the variables, it is better to gain understanding of the data statistics and be familiar with the distributions which govern each variable of interest. We do this first segregating the numeric data type columns in a separate data frame called `data_num` by creating a subset of the data frame `data` using the R function `select_if(.)`, which has the condition `is.numeric` to check if the value is numeric or not.   
+
+**Creating a data frame with only numeric data type values to perform numerical analysis**  
+
+```{r}
+data_num <- select_if(data, is.numeric) 
+data_num
+```
+  
+  
+**Mean of all the numeric columns**   
+
+```{r}
+summarize_all(data_num, list(mean=mean), na.rm=TRUE)
+```
+   
+   
+**Median of all the numeric columns**   
+
+```{r}
+summarize_all(data_num, list(median=median), na.rm=TRUE)
+```
+   
+   
+**Standard deviation of all the numeric columns**   
+
+```{r}
+summarize_all(data_num, list(sd=sd), na.rm=TRUE)
+```
+    
+      
+**Inter quartile range of all the numeric columns**   
+
+```{r}
+summarize_all(data_num, list(IQR=IQR), na.rm=TRUE)
+```
+   
+     
+**Minimum of all the numeric columns**   
+
+```{r}
+summarize_all(data_num, list(min=min), na.rm=TRUE)
+```
+   
+     
+**Maximum of all the numeric columns**   
+
+```{r}
+summarize_all(data_num, list(max=max), na.rm=TRUE)
+```
+   
+     
+**Mean of annual income grouped by term and also counting the number of values which fall in each term**   
+
+```{r}
+data_num %>%
+  group_by(term) %>%
+  summarise(mean_annual_income = mean(annual_income), n = n())
+```
+
+   
+     
+**Mean of loan amount grouped by term and also counting the number of values which fall in each term**   
+
+```{r}
+data_num %>%
+  group_by(term) %>%
+  summarise(mean_aloan_amount = mean(loan_amount), n = n())
+```
+    
+      
+**Minimum, maximum and mean of annual income grouped by the type of job of the borrower and also counting the number of values which fall in each job**   
+
+```{r}
+data %>%
+  group_by(job) %>%
+  summarise(min_annual_income = min(annual_income), 
+            max_annual_income = max(annual_income), 
+            mean_annual_income = mean(annual_income), 
+            n = n())
+```  
+
+
+**Minimum, maximum and mean of annual income grouped by the type of home ownership of the borrower and also counting the number of values which fall in each home ownership**   
+
+```{r}
+data %>%
+  group_by(homeownership) %>%
+  summarise(min_annual_income = min(annual_income), 
+            max_annual_income = max(annual_income), 
+            mean_annual_income = mean(annual_income), 
+            n = n())
+```
+   
+   
+**Minimum, maximum and mean of loan amount grouped by the type of home ownership of the borrower and also counting the number of values which fall in each home ownership**   
+
+```{r}
+data %>%
+  group_by(homeownership) %>%
+  summarise(min_loan_amount = min(loan_amount), 
+            max_loan_amount = max(loan_amount), 
+            mean_loan_amount = mean(loan_amount), 
+            n = n())
+```
+   
+     
+**Interest rate, the loan amount and the mean of annual income grouped by the type of grade of the loan and also counting the number of values which fall in each grade**   
+
+```{r}
+data %>%
+  group_by(grade) %>%
+  summarise( interest_rate = mean(interest_rate), 
+            loan_amount = mean(loan_amount),
+            mean_annual_income = mean(annual_income),
+            n = n())
+```  
+
+
+## Visualizations  
+
+Now that we have cleaned the data set, explored the data distributions and are familiar with the statistics, we can use them to our advantage while visualizing the relationships between the variables in the data set.  
+  
+**Visualization #1: Loan Amount Density** 
+```{r}
+ggplot(data, aes(x=loan_amount)) + 
+  geom_density(legend.position = "topright") + 
+  theme() +
+  xlab("Loan Amount") + 
+  ggtitle("Loan Amount") + 
+  geom_vline(aes(xintercept=mean(loan_amount)), color="black", linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=median(loan_amount)), color="red", linetype="dashed", size=1) + 
+  geom_vline(aes(xintercept=quantile(loan_amount, 0.25)), color="blue", linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=quantile(loan_amount, 0.75)), color="yellow", linetype="dashed", size=1) 
+```
+  
+This plot gives a lot of information about the distributions of data and the data statistics like mean, median, first and third quartile of the Loan Amount Density. The black dashed line corresponds to the mean, red corresponds to the median, blue corresponds to the first quartile and yellow corresponds to the third quartile. 
+
+**Visualization #2: Interest Rate Density** 
+```{r}
+ggplot(data, aes(x=interest_rate)) + 
+  geom_density() + 
+  theme(legend.position="none") +
+  xlab("Interest Rate") + 
+  ggtitle("Interest Rate") + 
+  geom_vline(aes(xintercept=mean(interest_rate)), color="black", linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=median(interest_rate)), color="red", linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=quantile(interest_rate, 0.25)), color="blue", linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=quantile(interest_rate, 0.75)), color="yellow", linetype="dashed", size=1)
+
+```
+  
+This plot gives a lot of information about the distributions of data and the data statistics like mean, median, first and third quartile of the Interest Rate Density. The black dashed line corresponds to the mean, red corresponds to the median, blue corresponds to the first quartile and yellow corresponds to the third quartile.  
+**Visualization #3: Interest Rate VS Grade on term of loan**  
+
+```{r}
+ggplot(data, aes(x =  interest_rate, y = grade , fill = term)) + 
+        geom_boxplot() + 
+        labs(x = 'Interest Rate' , y = 'Grade') +
+  facet_wrap(~ term)
+```  
+
+We find that as the value of Grade increases from A to G, the interest rate also increases linearly. Therefore, a linear relationship between the Grade and Interest Rate is seen, which is applicable for both terms of 36 months and 60 months. Which is in compliance with the fact that Higher-grade loans (i.e. A,B,C) indicate better credit and lower risk while lower grade loans (i.e. E, F, G) indicate the opposite, and thus lower interest rate for Higher-grade loans and higher interest rates for lower grade loans.  
+
+**Visualization #4: Purpose of Loan VS Loan Amount highlighting the status of Loan on term of loan**  
+
+```{r}
+ggplot(data, aes(x = loan_amount , y = loan_purpose , fill = loan_status)) + 
+        geom_boxplot() + 
+        labs(y = ' Purpose of Loan' , x = 'Loan_amount') +
+        facet_wrap(~ term)
+```
+  
+  
+  
+We find that for term of 36 months, the highest loan amounts correspond to the purposes like Renewable Energy, Moving, Major Purchases, Debt Consolidation, Home Improvement, Car and Credit Cards, all of whose loan status is currently going on. We also found that people take higher loans for all purposes for the 60 month term, and there are less number of late loan statuses for 60 month term, which shows that there are lesser instances where people are not able to pay back their loan on time for a longer loan period.  
+
+**Visualization #5 - Loan Amount VS Grade highlighting Sub Grade on term of loan**
+  
+```{r}
+ggplot(data, aes(x = grade , y = loan_amount , fill = sub_grade)) + 
+        geom_boxplot() + 
+        labs(y = 'Loan Amount' , x = 'Grade') +
+  facet_wrap(~ term)
+```
+  
+Here we do not observe a linear relationship between Grade and Loan Amount, rather higher loan amounts are observed for 60 month term than the 30 month term for all the Grades (A-G). We also observe that Grade A in the 60 month term has the highest Loan Amount, and that Grade G does not have a significant Loan Amount for 36 month term.  
+
+**Visualization #6- State VS Percentage of Loans**  
+
+
+```{r}
+data %>%
+  group_by(state) %>%
+  summarise(CountLoanPurpose = n() ) %>%
+  mutate(percentage = (CountLoanPurpose/sum(CountLoanPurpose) ) *100 ) %>%
+  mutate(state = reorder(state, percentage)) %>%
+  arrange(desc(percentage)) %>%
+  filter(percentage > 1) %>%
+  
+  ggplot(aes(x = state, y = percentage, fill=state)) +
+  geom_bar(stat='identity', colour="white") +
+  geom_text(aes(x = state, y = 1, label = paste0(round(percentage,2),sep="")),
+            hjust=0, vjust=.5, size = 4, colour = 'black',
+            fontface = 'bold') +
+  labs(x = 'State Name', y = 'Percentage of Loans', title = 'States and Loans') +
+  coord_flip()
+```  
+
+
+Here we observe (in decreasing order) the state-wise trends in the form of loan percentage for loan percentage greated than 1%. We find that people in California takes the majority of loans with 13.39%.  
+
+
+**Visualization #7- Purpose VS Loan Amount on Type of Application**  
+
+
+```{r}
+ggplot(data, aes(y =  loan_purpose, x = loan_amount, fill = application_type)) + 
+        geom_boxplot() + 
+        labs(x = 'Loan Amount' , y = 'Purpose')
+```
+   
+The relationship between the purpose and loan amount is observed here, and we can also see the type of application for the loan here. It is seen that a joint application type corresponds to higher loan amount, and this relationship is extremely visible for purposes like Small Businesses and House.  
+
+**Visualization #8 - Loan Amount VS Annual Income highlighting Rate of Interest on Term of Loan**  
+
+
+```{r}
+ggplot(data, aes(x = annual_income , y = loan_amount , color = interest_rate)) +
+        geom_point(alpha = 0.5 , size = 1.5) + 
+        geom_smooth(se = F , color = 'darkred' , method = 'loess') +
+        xlim(c(0 , 1500000)) +
+        labs(x = 'Annual Income' , y = 'Loan Ammount' , color = 'Interest Rate') +
+        facet_wrap(~ term)
+```
+  
+Here we observe the trends between Loan Amount, Annual Income and Rate of Interest over 36 month and 60 month terms. It can be clearly seen that people prefer to take loans of higher amounts for a 60 term period for lesser Rate of Interests. We find that there is no relationship between Annual Income and the Loan Amount, but there are a few outliers, eg., a person earning over 1000000 taking a loan of 40000.  
+
+**Visualization #9 - Purpose VS Loan Amount on Type of Income**
+
+```{r}
+ggplot(data, aes(x = loan_amount , y = loan_purpose, fill = verified_income)) + 
+        geom_boxplot() + 
+        labs(y = ' Purpose of Loan' , x = 'Loan_amount')
+```
+  
+  
+The relationship between the purpose and loan amount is observed here, and we can also see the type of income of the borrower. It is seen that a verified income type corresponds to higher loan amount, and this relationship is extremely visible for purposes like House, major purchases and Small Businesses.  
+
+**Visualization #10: Loan Amount VS Grade using a density plot**   
+
+```{r}
+ggplot(data,aes(loan_amount, fill=grade))+
+  geom_density(alpha=0.25) + 
+  facet_grid(grade ~ .) +
+  theme_minimal()
+```  
+  
+This plot shows how the loan amount density varies with the grade of the loan. It can be seen that as the loan amount increases, the grade of the loan goes from A to G. Though the shift is gradual.
+
+**Visualization #11: State VS Total Loans Issues on the basis of the status of the loan**  
+
+```{r}
+ggplot(data = data, aes(x=state, fill=loan_status)) +
+  labs(x="State", y="Total Loan issued") +
+  geom_bar() +
+  coord_flip()
+```
+  
+This plot gives information about the loan status for the different states in the United States and also shows the total number of loans issued per state. It can be observed that California has the highest number of issues loans, but also have the highest number of fully paid loans.  
+
+**Visualization #12: Interest Rate VS Annual Income for different terms** 
+```{r}
+ggplot(data, aes(y = interest_rate , x =annual_income , color = factor(term) )) +
+        geom_point(alpha = 0.5 , size = 1.5) + 
+        geom_smooth(se = F , color = 'darkred' , method = 'loess') +
+        labs(y = 'interest_rate' , x = 'Annual Income' , color = 'Interest Rate') +
+        xlim(c(0 , 100000)) + 
+        facet_grid(~term)
+```
+  
+The relationship between Rate of Interest and Annual Income is highlighted here. The line of best fit is also shown for two different terms. It can be seen that as the Annual Income increases, the rate of interest decreases, and this relationship is observed for both the terms. It can also be seen that the rate of interest is higher for the 60 month period for the same value of annual income.   
+
+**Visualization #13: Interest Rate VS Loan Amount for different terms** 
+```{r}
+ggplot(data, aes(y = interest_rate , x = loan_amount , color = factor(term) )) +
+        geom_point(alpha = 0.5 , size = 1.5) + 
+        geom_smooth(se = F , color = 'darkred' , method = 'loess') +
+        labs(y = 'interest_rate' , x = 'Loan Amount' , color = 'Interest Rate') +
+        facet_grid(~term)
+```
+  
+The relationship between Rate of Interest and Loan Amount is highlighted here. The line of best fit is also shown for two different terms. It can be seen that as the Loan Amount increases, the rate of interest decreases, and this relationship is observed for both the terms.  It can also be seen that the rate of interest is higher for the 60 month period for the same value of Loan Amount.   
+
+**Visualization #14: Violin Plot Loan Purpose VS Loan Amount for different Application Type** 
+```{r}
+ggplot(data, aes(loan_amount, loan_purpose)) +
+  geom_violin(aes(fill = application_type)) +
+  scale_x_continuous(trans='log2') +
+  theme_minimal()
+```
+  
+This is a violin plot highlighting the relationship between the purpose of the loan and the loan amount based on the type of the application for the loan. A violin plot is the mixture of a box plot and a density plot. 
+
+**Visualization #15: Loan Amount VS Grade using a density plot for two different terms**   
+
+```{r}
+ggplot(data,aes(loan_amount, fill=grade))+
+  geom_density(alpha=0.25) + 
+  facet_grid(term ~ .) +
+  theme_minimal()
+``` 
+  
+This plot shows the loan amount density for different grades and different terms of loan. It can be clearly seen that the loan amount density is highest for grade G loans for a 60 month term.  
+
+## Reflection  
+
+I thoroughly enjoyed working on this project, and especially this data set as it I got to apply almost all data wrangling techniques taught in class. This was a real-life data set and therefore, had missing values, confusing column names and huge in size as well. This was a great learning opportunity and I'm glad that I could come up with this project.  
+
+I started by finding the dimensions of the data set and also found out the types of data in it. I personally feel that one should know the data before analyzing or visualizing the relationships and variables, therefore, I first found out the names of all the columns and a few of their values to get a rough idea by using the `glimpse(.)` function.   
+
+The data was cleaned by getting rid of the missing values and by changing the names of the columns which had a confusing name. The rows with missing values in the column 'emp_title', which was renames as 'job', were removed as it is not possible to estimate the job of people, which lead us to remove 833 values. Coincidentally, it lead us to get rid of the missing values in the 'employment_len'. The rest of the missing values were replaced with '-1' for numeric data type columns and 'Not Applicable' for categorical data type columns.  
+
+This cleaned data set was then used to better understand the data set by calculating mean, median, standard deviation of numeric variables, and a group of these variables are also summarized to find how the mean, median and standard deviation of the group varies with home ownership, grade and term. These statistics help us gain a deeper understanding of the relationships between the variables, which are later used in making better visualizations.  
+
+The most challenging was to pick out important features from the data set, as it had a large number of features. Meaningful relationships between the variables are plotted using scatter plot, density plots, line charts, bar graphs, box plots and violin plots. It would have been better if I knew about some feature selection techniques in R, as it would have enhanced my analysis, visualizations and therefore, overall project.  
+
+## Conclusion  
+
+This project was successfully implemented to explore and visualize important relationships between variables in the data set. The Lending Club data set provided with important features like Annual Income of the borrower, Loan Amount, Rate of Interest, Application type, Term, Home Ownership, State, Loan Status, Grade of Loan, Sub-grade of Loan, Purpose of Loan, etc.  
+
+The project was able to answer all the questions which were asked, and some more. The following conlusions can be drawn:  
+1. The rate of interest increases as the grade of loan goes from A to G. That is, it is highest for Grade G and Lowest for Grade A loans.  
+2. Higher amounts of loans are taken for a 60-month term than for a 36-month term.  
+3. Late loan repayment is observed for a 36-month term loan.  
+4. The relationship between loan amount and sub-grade is inconclusive.  
+5. California has the highest number of loan borrowers with Total 13.39% of the total Loans given, followed by Texas, New York and Florida with 8.2%, 7.94% and 7.16% respectively.  
+6. It is observed that higher amounts of loan are taken for Small Business, Major Purchase, House, Home Improvement and Dept Consolidation. The loan amounts for a joint application type is found to be much higher, than an individual loan application type for all the same purposes.  
+7. No clear relationship is observed between loan amount and annual income.  
+8. Higher amounts of loan are sanctioned to people with a verified source of income.  
+9. It was observed that high number of grade A loans were for smaller loan amounts, while a high number of grade G loans were for high loan amounts.  
+10. It was found that both annual income and loan amount are inversely proportional to rate of interest. It can also be seen that the rate of interest is higher for the 60 month period for the same value of annual income.  
+
+# Bibliography  
+
+1. Lending Club Loan Data set. https://www.openintro.org/data/index.php?data=loans_full_schema  
+2. R for Data Science. Book. https://r4ds.had.co.nz/index.html  
+3. Programming Language R
+
+
+
